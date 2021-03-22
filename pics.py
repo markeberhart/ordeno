@@ -7,11 +7,14 @@ import shutil
 import pathlib
 import csv
 import hashlib
+import pickle
 
 from hachoir.parser import createParser
 from hachoir.metadata import extractMetadata
 from hachoir.core import config as HachoirConfig
 HachoirConfig.quiet = True
+
+#C:\Python38\python.exe <- use this as interpreter when not working
 
 #warnings.filterwarnings("ignore")
 #from pymediainfo import MediaInfo
@@ -25,11 +28,16 @@ HachoirConfig.quiet = True
 #D:\\__MY_FILES\\Pictures\\iCloud Photos
 #D:\\__MY_FILES\\Pictures\\by_date
 #D:\__MY_FILES\Pictures\Camera Roll
-hash_dict_copied = {}
+hash_set = set()
+reset_hash_set = False
+hash_set_log = 'D:\\__MY_FILES\\Pictures\\Camera Roll\\rgb\\hash_set_log.data'
 log_copied = 'D:\\__MY_FILES\\Pictures\\Camera Roll\\rgb\\log_copied_rgb.csv'
 log_not_copied = 'D:\\__MY_FILES\\Pictures\\Camera Roll\\rgb\\log_not_copied_rgb.csv'
 copyfromdir = 'D:\\__MY_FILES\\Pictures\\Camera Roll\\rgb'
 copytodir = 'D:\\__MY_FILES\\Pictures\\Camera Roll\\rgb\\by_date'
+
+
+
 # popwin = sg.popup('You entered', picdir)
 IMAGE_TYPES = ('png', 'jpeg', 'jpg', 'gif', 'JPG', 'JPEG','PNG', 'mov', 'MOV', 'm4v', 'M4V', 'mp4','MP4','wmv', 'WMV', 'avi', 'AVI')
 print("===========================================")
@@ -38,7 +46,7 @@ print(copyfromdir)
 epoch = datetime.utcfromtimestamp(0)
 
 def add_to_copied_log(fields):
-    #hash_dict_copied
+    #hash_set
     with open(log_copied, 'a', newline='') as csvfile: 
         # creating a csv writer object 
         csvwriter = csv.writer(csvfile) 
@@ -46,7 +54,7 @@ def add_to_copied_log(fields):
         csvwriter.writerow(fields)
 
 def add_to_not_copied_log(fields):
-    #hash_dict_copied
+    #hash_set
     with open(log_not_copied, 'a', newline='') as csvfile: 
         # creating a csv writer object 
         csvwriter = csv.writer(csvfile) 
@@ -64,12 +72,52 @@ def create_copied_log():
 
 def create_not_copied_log():
     # field names 
-    fields = ['original_file', 'new_file', 'type', 'date', 'ms', 'was_copied', 'hash'] 
+    fields = ['original_file', 'new_file', 'type', 'date', 'ms', 'was_copied', 'hash']
     with open(log_not_copied, 'w', newline='') as csvfile: 
         # creating a csv writer object 
         csvwriter = csv.writer(csvfile) 
         # writing the fields 
-        csvwriter.writerow(fields) 
+        csvwriter.writerow(fields)
+
+def create_hash_set_log():
+    with open(hash_set_log, 'wb') as filehandle:
+        _set = set()
+        pickle.dump(_set, filehandle)
+        return _set
+
+def save_hash_set_log():
+    with open(hash_set_log, 'wb') as filehandle:
+        _set = hash_set
+        pickle.dump(_set, filehandle)
+        return _set
+
+def get_hash_set_log():
+    with open(hash_set_log, 'rb') as filehandle:
+        _set = pickle.load(filehandle)
+        return _set
+
+def hash_set_log_exists():
+    exists = False
+    if os.path.isfile(hash_set_log):
+        exists = True
+    return exists
+
+def delete_hash_set_log():
+    os.remove(hash_set_log)
+
+def try_load_hash_set_log():
+    if(hash_set_log_exists()):
+        if(reset_hash_set):
+            delete_hash_set_log()
+            hash_set = create_hash_set_log()
+        else:
+            hash_set = get_hash_set_log()
+    else: 
+        hash_set = create_hash_set_log()
+    return hash_set
+
+def addto_hash_set(img_hash):
+    hash_set.add(img_hash)
 
 def unix_time_millis(dt):
     return (dt - epoch).total_seconds() * 1000.0
@@ -179,6 +227,22 @@ def create_dates_dir(obj):
         create_dir(d)
     return dir_day
 
+def copy_file(targ, dest):
+    shutil.copy2(targ, dest)
+
+def make_a_copy(targ, dest, img_hash, fields):
+    add_to_copied_log(fields)
+    copy_file(targ, dest)
+    addto_hash_set(img_hash)
+    print("ORIG  FILE:" + targ)
+    print("NEW FILE:" + dest)
+
+def dont_make_a_copy(targ, dest, img_hash, fields):
+    add_to_not_copied_log(fields)
+    #copy_file(targ, dest)
+    #addto_hash_set(img_hash)
+    print("NOT COPIED:" + targ)
+
 def get_new_filename(obj, ext, img_hash):
     new_name = obj['year']
     new_name = new_name + "-" + obj['month']
@@ -204,37 +268,35 @@ def try_add_new_file(dates_array, targ, ext, img_hash):
     date = get_date_str(str_date_obj)
     ms = str_date_obj['ms']
     print("HASH: " + img_hash)
-    # keep a dict of all hashes and check if it exists or not
-    # if it does not yet exist, then add
-    # if it exists, then do not add
-    # hash_dict_copied
+    print ("HASH SET: " + str(hash_set))
 
-    #file = pathlib.Path(dest)
-    if not os.path.isfile(dest):
+    # NO Image date not previousy encountered
+    # NO Image with these pixels not encountered
+    if (not os.path.isfile(dest) and img_hash not in hash_set):
         fields = [file_orig, new_file, file_type, date, ms, 'true', img_hash]
-        add_to_copied_log(fields)
-        hash_dict_copied[img_hash] = 'true'
-        shutil.copy2(targ, dest) # target filename is /dst/dir/file.ext
-        print("ORIG  FILE:" + targ)
-        print("SAVE FILE:"+new_file)
-        print("TO DIR:" + day_dir)
-    else:
-        try:
-            check_hash = hash_dict_copied[img_hash]
-            print("HASH FOUND:" + check_hash)
-            print("CHECK HASH: " + str(hash_dict_copied))
-            fields = [file_orig, new_file, file_type, date, ms, 'false', img_hash]
-            add_to_not_copied_log(fields)
-        except KeyError:
-            print("--> no HASH found")
-            fields = [file_orig, new_file, file_type, date, ms, 'true', img_hash]
-            add_to_copied_log(fields)
-            hash_dict_copied[img_hash] = 'true'
-            shutil.copy2(targ, dest) # target filename is /dst/dir/file.ext
-            print("ORIG  FILE:" + targ)
-            print("SAVE FILE:"+new_file)
-            print("TO DIR:" + day_dir)
+        make_a_copy(targ, dest,img_hash,fields)
+        
+    # YES Image date previousy encountered
+    # NO Image with these pixels not encountered
+    elif (os.path.isfile(dest) and img_hash not in hash_set):
+        fields = [file_orig, new_file, file_type, date, ms, 'true', img_hash]
+        make_a_copy(targ, dest,img_hash,fields)
 
+    # NO Image date not previousy encountered
+    # YES Image with these pixels encountered
+    elif (not os.path.isfile(dest) and img_hash in hash_set):
+        fields = [file_orig, new_file, file_type, date, ms, 'false', img_hash]
+        dont_make_a_copy(targ, dest,img_hash,fields)
+
+    # YES Image date not previousy encountered
+    # YES Image with these pixels encountered
+    elif (os.path.isfile(dest) and img_hash in hash_set):
+        fields = [file_orig, new_file, file_type, date, ms, 'false', img_hash]
+        dont_make_a_copy(targ, dest,img_hash,fields)
+
+    else:
+        fields = [file_orig, new_file, file_type, date, ms, 'false', img_hash]
+        dont_make_a_copy(targ, dest,img_hash,fields)
         
 
 def main():
@@ -289,8 +351,13 @@ def main():
                 try_add_new_file(dates_array, targ, ext, img_hash)
                 print("##############")
 
+        print("ALL DONE")
+        print ("HASH SET: " + str(hash_set))
+        save_hash_set_log()
+
 
 if __name__== "__main__":
+    try_load_hash_set_log()
     if os.path.isfile(log_copied):
         os.remove(log_copied)
     if os.path.isfile(log_not_copied):
