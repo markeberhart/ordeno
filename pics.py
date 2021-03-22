@@ -20,7 +20,7 @@ HachoirConfig.quiet = True
 #from pymediainfo import MediaInfo
 #import cv2
 
-# todo - check and log duplicates based on filename and whether already exists
+# todo - check duplicates simply by looking at hash table and not looking or file existing?
 
 #copyfromdir = sg.popup_get_folder('Enter the file you wish to process')
 #This PC\Apple iPhone\Internal Storage\DCIM\100CLOUD
