@@ -1,4 +1,4 @@
-import PySimpleGUI as sg
+#import PySimpleGUI as sg
 import exifread
 import os, time
 import warnings
