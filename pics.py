@@ -131,7 +131,8 @@ def get_mod_date(file):
         'day':    str(moddate.day),
         'hour':   add_zero(str(moddate.hour)),
         'minute':   add_zero(str(moddate.minute)),
-        'ms':     modtime*1000
+        'ms':     modtime*1000,
+        'type': 'md'
     }
     return obj
 
@@ -144,7 +145,8 @@ def get_cdate_date(dt):
         'day':    str(dtoms.day),
         'hour':   add_zero(str(dtoms.hour)),
         'minute':   add_zero(str(dtoms.minute)),
-        'ms':     int(dt2)
+        'ms':     int(dt2),
+        'type': 'cd'
     }
     return obj
 
@@ -158,7 +160,8 @@ def get_exif_date(dt):
             'day':    str(dtoms.day),
             'hour':   add_zero(str(dtoms.hour)),
             'minute':   add_zero(str(dtoms.minute)),
-            'ms':     int(dt2)
+            'ms':     int(dt2),
+            'type': 'dto'
         }
         return obj
     except ValueError:
@@ -284,6 +287,7 @@ def try_add_new_file(dates_array, targ, ext, img_hash):
 
     # NO Image date not previousy encountered
     # YES Image with these pixels encountered
+    # todo what about when images deleted, but corresponding hash record not deleted in .data file?
     elif (not os.path.isfile(dest) and img_hash in hash_set):
         fields = [file_orig, new_file, file_type, date, ms, 'false', img_hash]
         dont_make_a_copy(targ, dest,img_hash,fields)
@@ -308,6 +312,7 @@ def main():
             targ = os.path.join(subdir, file)
             ext = os.path.splitext(file)[1]
             #print(os.path.join(subdir, file))
+            date_type = 'md'
             dt1 = get_mod_date(targ)
             dates_array.append(dt1)
             img_hash = ''
